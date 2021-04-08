@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -58,6 +59,13 @@ func main() {
 		if otherp == 0 || queryText[0] == "USDT" {
 			otherp = getCoingeckoPrice(strings.ToLower(queryText[0]))
 		}
+		var c2cp float64
+		for _, v := range []string{"usdt", "btc", "busd", "bnb", "eth", "dai"} {
+			if strings.ToLower(queryText[0]) == v {
+				c2cp = getC2CPrice(queryText[0])
+				break
+			}
+		}
 		results := make(tb.Results, 1)
 		if usdp > 0 && otherp > 0 {
 			count, err := strconv.ParseFloat(queryText[1], 64)
@@ -67,7 +75,16 @@ func main() {
 			}
 			cnyp := ftostring(usdp * otherp * count)
 			usdtp := ftostring(otherp * count)
-			results[0] = &tb.ArticleResult{Title: fmt.Sprintf(resultsText+" %s USD", usdtp), Text: fmt.Sprintf("%s %s = %s USD\n%s %s = %s CNY", queryText[1], queryText[0], usdtp, queryText[1], queryText[0], cnyp)}
+			text := fmt.Sprintf("%s %s = %s USD\n%s %s = %s CNY", queryText[1], queryText[0], usdtp, queryText[1], queryText[0], cnyp)
+			if c2cp > 0 {
+				c2cpStr := fmt.Sprintf("%.4f", c2cp*count)
+				if c2cp*count > 100 {
+					c2cpStr = fmt.Sprintf("%.2f", c2cp*count)
+
+				}
+				text += fmt.Sprintf("\n币安场外价格: %s CNY", c2cpStr)
+			}
+			results[0] = &tb.ArticleResult{Title: fmt.Sprintf(resultsText+" %s USD", usdtp), Text: text}
 		} else {
 			results[0] = &tb.ArticleResult{Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ"}
 		}
@@ -127,6 +144,22 @@ func getBinancePrice(s string) float64 {
 		}
 	}
 	return 0
+}
+
+func getC2CPrice(s string) float64 {
+	jsonStr := []byte(fmt.Sprintf(`{"page":1,"rows":10,"payTypeList":[],"asset":"%s","tradeType":"SELL","fiat":"CNY"}`, s))
+	if resp, err := http.Post("https://c2c.binance.com/gateway-api/v2/public/c2c/adv/search", "application/json", bytes.NewBuffer(jsonStr)); err == nil {
+		if body, err := ioutil.ReadAll(resp.Body); err == nil {
+			resp.Body.Close()
+			var res map[string]interface{}
+			if err := json.Unmarshal(body, &res); err == nil {
+				if price, err := strconv.ParseFloat(res["data"].([]interface{})[0].(map[string]interface{})["advDetail"].(map[string]interface{})["price"].(string), 64); err == nil {
+					return price
+				}
+			}
+		}
+	}
+	return 0.0
 }
 
 type SymbolMap struct {
