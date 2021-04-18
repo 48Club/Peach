@@ -28,6 +28,21 @@ func main() {
 	}
 
 	b.Handle(tb.OnQuery, func(q *tb.Query) {
+		if strings.ToUpper(q.Text) == "HHHH" {
+			results := make(tb.Results, 1)
+			results[0] = &tb.PhotoResult{
+				URL:       "https://i.imgur.com/JMXhPqI.png",
+				ThumbURL:  "https://i.imgur.com/JMXhPqI.png",
+				Caption:   "`Pig God: 我发火龙都累死了`",
+				ParseMode: tb.ModeMarkdownV2,
+			}
+			results[0].SetResultID(strconv.Itoa(1))
+			_ = b.Answer(q, &tb.QueryResponse{
+				Results:   results,
+				CacheTime: 1000,
+			})
+			return
+		}
 		queryText := strings.Split(strings.ToUpper(q.Text), " ")
 		resultsText := "当查询词为空时，默认查询 BTC 汇率"
 		if len(queryText) == 0 {
@@ -59,10 +74,18 @@ func main() {
 		if otherp == 0 || queryText[0] == "USDT" {
 			otherp = getCoingeckoPrice(strings.ToLower(queryText[0]))
 		}
-		var c2cp float64
+		var bc2cp float64
 		for _, v := range []string{"usdt", "btc", "busd", "bnb", "eth", "dai"} {
 			if strings.ToLower(queryText[0]) == v {
-				c2cp = getC2CPrice(queryText[0])
+				bc2cp = getBinanceC2CPrice(queryText[0])
+				break
+			}
+		}
+		var hc2cp float64
+
+		for k, v := range map[string]string{"btc": "1", "ht": "4", "ltc": "8", "xrp": "7", "eos": "5", "eth": "3", "usdt": "2"} {
+			if strings.ToLower(queryText[0]) == k {
+				hc2cp = getHuobiC2CPrice(v)
 				break
 			}
 		}
@@ -76,14 +99,8 @@ func main() {
 			cnyp := ftostring(usdp * otherp * count)
 			usdtp := ftostring(otherp * count)
 			text := fmt.Sprintf("%s %s = %s USD\n%s %s = %s CNY", queryText[1], queryText[0], usdtp, queryText[1], queryText[0], cnyp)
-			if c2cp > 0 {
-				c2cpStr := fmt.Sprintf("%.4f", c2cp*count)
-				if c2cp*count > 100 {
-					c2cpStr = fmt.Sprintf("%.2f", c2cp*count)
-
-				}
-				text += fmt.Sprintf("\n币安场外价格: %s CNY", c2cpStr)
-			}
+			text += getC2CStr(count, bc2cp, "币安")
+			text += getC2CStr(count, hc2cp, "火币")
 			results[0] = &tb.ArticleResult{Title: fmt.Sprintf(resultsText+" %s USD", usdtp), Text: text}
 		} else {
 			results[0] = &tb.ArticleResult{Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ"}
@@ -105,6 +122,21 @@ func main() {
 	})
 	b.Start()
 }
+
+func getC2CStr(count float64, price float64, s string) string {
+	if price > 0 {
+		c2cpStr := ""
+		amount := price * count
+		if amount > 100 {
+			c2cpStr = fmt.Sprintf("%.2f", amount)
+		} else {
+			c2cpStr = fmt.Sprintf("%.4f", amount)
+		}
+		return fmt.Sprintf("\n%s场外价格: %s CNY", s, c2cpStr)
+	}
+	return ""
+}
+
 func ftostring(f float64) string {
 	c := 2
 	if f < 100 {
@@ -146,14 +178,29 @@ func getBinancePrice(s string) float64 {
 	return 0
 }
 
-func getC2CPrice(s string) float64 {
+func getBinanceC2CPrice(s string) float64 {
 	jsonStr := []byte(fmt.Sprintf(`{"page":1,"rows":10,"payTypeList":[],"asset":"%s","tradeType":"SELL","fiat":"CNY"}`, s))
 	if resp, err := http.Post("https://c2c.binance.com/gateway-api/v2/public/c2c/adv/search", "application/json", bytes.NewBuffer(jsonStr)); err == nil {
 		if body, err := ioutil.ReadAll(resp.Body); err == nil {
 			resp.Body.Close()
 			var res map[string]interface{}
-			if err := json.Unmarshal(body, &res); err == nil {
+			if err := json.Unmarshal(body, &res); err == nil && res["code"].(string) == "000000" {
 				if price, err := strconv.ParseFloat(res["data"].([]interface{})[0].(map[string]interface{})["advDetail"].(map[string]interface{})["price"].(string), 64); err == nil {
+					return price
+				}
+			}
+		}
+	}
+	return 0.0
+}
+
+func getHuobiC2CPrice(s string) float64 {
+	if resp, err := http.Get(fmt.Sprintf("https://otc-api-hk.eiijo.cn/v1/data/trade-market?coinId=%s&currency=1&tradeType=sell&currPage=1&payMethod=0&acceptOrder=-1&country=&blockType=general&online=1&range=0", s)); err == nil {
+		if body, err := ioutil.ReadAll(resp.Body); err == nil {
+			resp.Body.Close()
+			var res map[string]interface{}
+			if err := json.Unmarshal(body, &res); err == nil && res["code"].(float64) == 200 {
+				if price, err := strconv.ParseFloat(res["data"].([]interface{})[0].(map[string]interface{})["price"].(string), 64); err == nil {
 					return price
 				}
 			}
