@@ -31,10 +31,23 @@ func main() {
 		if strings.ToUpper(q.Text) == "HHHH" {
 			results := make(tb.Results, 1)
 			results[0] = &tb.PhotoResult{
-				URL:       "https://i.imgur.com/JMXhPqI.png",
-				ThumbURL:  "https://i.imgur.com/JMXhPqI.png",
+				URL:       "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/JMXhPqI.png",
+				ThumbURL:  "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/JMXhPqI.png",
 				Caption:   "`Pig God: 我发火龙都累死了`",
 				ParseMode: tb.ModeMarkdownV2,
+			}
+			results[0].SetResultID(strconv.Itoa(1))
+			_ = b.Answer(q, &tb.QueryResponse{
+				Results:   results,
+				CacheTime: 1000,
+			})
+			return
+		}
+		if strings.ToUpper(q.Text) == "0000" {
+			results := make(tb.Results, 1)
+			results[0] = &tb.VoiceResult{
+				URL:   "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/0000.ogg",
+				Title: "归零",
 			}
 			results[0].SetResultID(strconv.Itoa(1))
 			_ = b.Answer(q, &tb.QueryResponse{
