@@ -17,6 +17,12 @@ import (
 )
 
 func main() {
+	ogglist := map[string][]string{
+		"0000":   {"file/0000.ogg", "归零"},
+		".kong":  {"file/kong.ogg", "直接重仓空进去"},
+		".suoha": {"file/suoha.ogg", "已经在谷底了，梭！"},
+	}
+	rawurl := "https://raw.githubusercontent.com/BNB48Club/Peach/main/"
 	b, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("token"),
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
@@ -31,31 +37,34 @@ func main() {
 		if strings.ToUpper(q.Text) == "HHHH" {
 			results := make(tb.Results, 1)
 			results[0] = &tb.PhotoResult{
-				URL:       "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/JMXhPqI.png",
-				ThumbURL:  "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/JMXhPqI.png",
+				URL:       fmt.Sprintf("%sfile/JMXhPqI.png", rawurl),
+				ThumbURL:  fmt.Sprintf("%sfile/JMXhPqI.png", rawurl),
 				Caption:   "`Pig God: 我发火龙都累死了`",
 				ParseMode: tb.ModeMarkdownV2,
 			}
 			results[0].SetResultID(strconv.Itoa(1))
 			_ = b.Answer(q, &tb.QueryResponse{
 				Results:   results,
-				CacheTime: 1000,
+				CacheTime: 60,
 			})
 			return
 		}
-		if strings.ToUpper(q.Text) == "0000" {
-			results := make(tb.Results, 1)
-			results[0] = &tb.VoiceResult{
-				URL:   "https://raw.githubusercontent.com/BNB48Club/Peach/main/file/0000.ogg",
-				Title: "归零",
+		for k, v := range ogglist {
+			if strings.EqualFold(q.Text, k) {
+				results := make(tb.Results, 1)
+				results[0] = &tb.VoiceResult{
+					URL:   fmt.Sprintf("%s%s", rawurl, v[0]),
+					Title: v[1],
+				}
+				results[0].SetResultID(strconv.Itoa(1))
+				_ = b.Answer(q, &tb.QueryResponse{
+					Results:   results,
+					CacheTime: 60,
+				})
+				return
 			}
-			results[0].SetResultID(strconv.Itoa(1))
-			_ = b.Answer(q, &tb.QueryResponse{
-				Results:   results,
-				CacheTime: 1000,
-			})
-			return
 		}
+
 		queryText := strings.Split(strings.ToUpper(q.Text), " ")
 		resultsText := "当查询词为空时，默认查询 BTC 汇率"
 		if len(queryText) == 0 {
