@@ -32,8 +32,8 @@ func main() {
 	}
 
 	b.Handle(tb.OnQuery, func(q *tb.Query) {
+		results := make(tb.Results, 1)
 		if strings.ToUpper(q.Text) == "HHHH" {
-			results := make(tb.Results, 1)
 			results[0] = &tb.PhotoResult{
 				URL:       fmt.Sprintf("%sJMXhPqI.png", rawurl),
 				ThumbURL:  fmt.Sprintf("%sJMXhPqI.png", rawurl),
@@ -49,10 +49,10 @@ func main() {
 		}
 		for k, v := range ogglist {
 			if strings.EqualFold(q.Text, k) {
-				results := tb.Results{&tb.VoiceResult{
+				results[0] = &tb.VoiceResult{
 					URL:   fmt.Sprintf("%s%s", rawurl, v[0]),
 					Title: v[1],
-				}}
+				}
 				results[0].SetResultID(strconv.Itoa(0))
 				_ = b.Answer(q, &tb.QueryResponse{
 					Results:   results,
@@ -70,10 +70,10 @@ func main() {
 			} else {
 				var err error
 				gxindex, err = strconv.ParseInt(gxq[1], 10, 64)
-				if err != nil {
-					results := tb.Results{&tb.ArticleResult{
+				if err != nil || gxindex > int64(len(gxlist)-1) {
+					results[0] = &tb.ArticleResult{
 						Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ",
-					}}
+					}
 					results[0].SetResultID(strconv.Itoa(0))
 					_ = b.Answer(q, &tb.QueryResponse{
 						Results:   results,
@@ -82,15 +82,16 @@ func main() {
 					return
 				}
 			}
-			results := tb.Results{&tb.VoiceResult{
+			results[0] = &tb.VoiceResult{
 				URL:   fmt.Sprintf("%sgx/%d.ogg", rawurl, gxindex),
 				Title: gxlist[gxindex],
-			}}
+			}
 			results[0].SetResultID(strconv.Itoa(0))
 			_ = b.Answer(q, &tb.QueryResponse{
 				Results:   results,
-				CacheTime: 60,
+				CacheTime: 1,
 			})
+			return
 		}
 
 		queryText := strings.Split(strings.ToUpper(q.Text), " ")
@@ -139,7 +140,7 @@ func main() {
 				break
 			}
 		}
-		results := make(tb.Results, 1)
+
 		if usdp > 0 && otherp > 0 {
 			count, err := strconv.ParseFloat(queryText[1], 64)
 			if err != nil {
