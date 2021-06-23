@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,12 +18,9 @@ import (
 )
 
 func main() {
-	ogglist := map[string][]string{
-		"0000":   {"file/0000.ogg", "归零"},
-		".kong":  {"file/kong.ogg", "直接重仓空进去"},
-		".suoha": {"file/suoha.ogg", "已经在谷底了，梭！"},
-	}
-	rawurl := "https://raw.githubusercontent.com/BNB48Club/Peach/main/"
+
+	rawurl := fmt.Sprintf("https://raw.githubusercontent.com/BNB48Club/Peach/%s/file/", GetSha())
+
 	b, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("token"),
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
@@ -37,12 +35,12 @@ func main() {
 		if strings.ToUpper(q.Text) == "HHHH" {
 			results := make(tb.Results, 1)
 			results[0] = &tb.PhotoResult{
-				URL:       fmt.Sprintf("%sfile/JMXhPqI.png", rawurl),
-				ThumbURL:  fmt.Sprintf("%sfile/JMXhPqI.png", rawurl),
+				URL:       fmt.Sprintf("%sJMXhPqI.png", rawurl),
+				ThumbURL:  fmt.Sprintf("%sJMXhPqI.png", rawurl),
 				Caption:   "`Pig God: 我发火龙都累死了`",
 				ParseMode: tb.ModeMarkdownV2,
 			}
-			results[0].SetResultID(strconv.Itoa(1))
+			results[0].SetResultID(strconv.Itoa(0))
 			_ = b.Answer(q, &tb.QueryResponse{
 				Results:   results,
 				CacheTime: 60,
@@ -51,18 +49,48 @@ func main() {
 		}
 		for k, v := range ogglist {
 			if strings.EqualFold(q.Text, k) {
-				results := make(tb.Results, 1)
-				results[0] = &tb.VoiceResult{
+				results := tb.Results{&tb.VoiceResult{
 					URL:   fmt.Sprintf("%s%s", rawurl, v[0]),
 					Title: v[1],
-				}
-				results[0].SetResultID(strconv.Itoa(1))
+				}}
+				results[0].SetResultID(strconv.Itoa(0))
 				_ = b.Answer(q, &tb.QueryResponse{
 					Results:   results,
 					CacheTime: 60,
 				})
 				return
 			}
+		}
+		gxq := strings.Split(strings.ToUpper(q.Text), ".GX")
+		if len(gxq) == 2 && gxq[0] == "" {
+			gxindex := int64(0)
+			if gxq[1] == "" {
+				rand.Seed(time.Now().UnixNano())
+				gxindex = rand.Int63n(int64(len(gxlist)))
+			} else {
+				var err error
+				gxindex, err = strconv.ParseInt(gxq[1], 10, 64)
+				if err != nil {
+					results := tb.Results{&tb.ArticleResult{
+						Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ",
+					}}
+					results[0].SetResultID(strconv.Itoa(0))
+					_ = b.Answer(q, &tb.QueryResponse{
+						Results:   results,
+						CacheTime: 1,
+					})
+					return
+				}
+			}
+			results := tb.Results{&tb.VoiceResult{
+				URL:   fmt.Sprintf("%sgx/%d.ogg", rawurl, gxindex),
+				Title: gxlist[gxindex],
+			}}
+			results[0].SetResultID(strconv.Itoa(0))
+			_ = b.Answer(q, &tb.QueryResponse{
+				Results:   results,
+				CacheTime: 60,
+			})
 		}
 
 		queryText := strings.Split(strings.ToUpper(q.Text), " ")
@@ -133,14 +161,11 @@ func main() {
 		// results[1] = &tb.AresultsTexticleResult{Title: "赞助我 QAQ!", Text: "USDT(TRC20): `THyvm5rgHWA8D1R89Y12JASVdVhunHNcxd`"}
 		// results[0].SetResultID(strconv.Itoa(1))
 
-		err := b.Answer(q, &tb.QueryResponse{
+		_ = b.Answer(q, &tb.QueryResponse{
 			Results:   results,
 			CacheTime: 1,
 		})
 
-		if err != nil {
-			log.Println(err)
-		}
 	})
 	b.Start()
 }
@@ -285,3 +310,75 @@ func httpGet(uri string, v interface{}) error {
 	}
 	return err
 }
+
+func GetSha() string {
+	res := []map[string]interface{}{}
+	err := httpGet("https://api.github.com/repos/BNB48Club/Peach/commits", &res)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	return res[0]["sha"].(string)
+}
+
+var (
+	ogglist = map[string][]string{
+		"0000":   {"0000.ogg", "归零"},
+		".kong":  {"kong.ogg", "直接重仓空进去"},
+		".suoha": {"suoha.ogg", "已经在谷底了，梭！"},
+	}
+	gxlist = []string{
+		"八点尊",
+		"把那个消息撤回去",
+		"不是我针对谁，在座的各位都是我儿子",
+		"不要放DJ了，几十岁的人了",
+		"不要聊了先上DJ",
+		"不要挑战权威",
+		"道不同不相为谋",
+		"等下你会被莫名其妙移出该群的",
+		"等着猝死把，我先睡了么么哒",
+		"搞的自己很忙一样",
+		"给钱给钱，红包过来什么都有",
+		"滚一边去",
+		"几百条消息没有一条是关于我的",
+		"加个微信有这么难嘛",
+		"来到这个群不要泡群里面的妹子",
+		"来点DJ啊",
+		"老子听到我的语音就烦",
+		"没有，滚",
+		"每次喔都会找话题插一下",
+		"你何德何能让我加你好友啊",
+		"你们聊啊，我插不了嘴的",
+		"你们这群表面群友",
+		"你能不能不要在这里恶心啊",
+		"泡一杯红茶来喝一下",
+		"去跟张学友称兄掉地啊",
+		"群里的妹子有没有甜言蜜语的",
+		"群里面只有妹子能艾特我",
+		"群主把楼上这个叼毛踢掉",
+		"人家说要个鸡脖你给不给啊？",
+		"睡觉啦，不要在群里面发我的语音",
+		"天籁",
+		"晚上发点片片看啊",
+		"文明，wenming",
+		"我今晚那个炒米粉赚回来了",
+		"我们群主好搞笑啊",
+		"我是做鸭的",
+		"我说你们的微信小助手啊贤",
+		"下面我给大家带来一首英文歌",
+		"先来首DJ有那么难嘛",
+		"小姐姐我还是单身喔",
+		"笑死我了tmd，哎呦",
+		"新进群的妹子加我一下",
+		"一个文明的聊天群搞的乌鸦胀气的",
+		"有没有还有煞笔没有睡觉啊，出来聊天啊",
+		"有没有人知道那个当当当是什么音乐",
+		"在bb老子踢你",
+		"早上好兄弟姐妹们",
+		"这个群是怎么了，是感情纠纷",
+		"这是人说的话吗",
+		"真不知道你们一天到晚聊什么",
+		"左右为难啊",
+		"DJ在哪里不知道打电话找他",
+		"duang~",
+	}
+)
