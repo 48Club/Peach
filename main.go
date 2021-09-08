@@ -30,39 +30,44 @@ func main() {
 		log.Fatal(err)
 		return
 	}
+	answer := func(q *tb.Query, results tb.Results, ct int) {
+		results[0].SetResultID(strconv.Itoa(0))
+		_ = b.Answer(q, &tb.QueryResponse{
+			Results:   results,
+			CacheTime: ct,
+		})
+	}
+	inogglist := func(q string, ogglist map[string][]string) (bool, []string) {
+		for k, v := range ogglist {
+			if strings.EqualFold(q, k) {
+				return true, v
+			}
+		}
+		return false, []string{}
+	}
 
 	b.Handle(tb.OnQuery, func(q *tb.Query) {
 		results := make(tb.Results, 1)
-		if strings.ToUpper(q.Text) == "HHHH" {
+		isinogg, oggv := inogglist(q.Text, ogglist)
+		gxq := strings.Split(strings.ToUpper(q.Text), ".GX")
+		switch true {
+		case strings.ToUpper(q.Text) == "HHHH":
 			results[0] = &tb.PhotoResult{
 				URL:       fmt.Sprintf("%sJMXhPqI.png", rawurl),
 				ThumbURL:  fmt.Sprintf("%sJMXhPqI.png", rawurl),
 				Caption:   "`Pig God: 我发火龙都累死了`",
 				ParseMode: tb.ModeMarkdownV2,
 			}
-			results[0].SetResultID(strconv.Itoa(0))
-			_ = b.Answer(q, &tb.QueryResponse{
-				Results:   results,
-				CacheTime: 60,
-			})
+			answer(q, results, 60)
 			return
-		}
-		for k, v := range ogglist {
-			if strings.EqualFold(q.Text, k) {
-				results[0] = &tb.VoiceResult{
-					URL:   fmt.Sprintf("%s%s", rawurl, v[0]),
-					Title: v[1],
-				}
-				results[0].SetResultID(strconv.Itoa(0))
-				_ = b.Answer(q, &tb.QueryResponse{
-					Results:   results,
-					CacheTime: 60,
-				})
-				return
+		case isinogg:
+			results[0] = &tb.VoiceResult{
+				URL:   fmt.Sprintf("%s%s", rawurl, oggv[0]),
+				Title: oggv[1],
 			}
-		}
-		gxq := strings.Split(strings.ToUpper(q.Text), ".GX")
-		if len(gxq) == 2 && gxq[0] == "" {
+			answer(q, results, 60)
+			return
+		case len(gxq) == 2 && gxq[0] == "":
 			gxindex := int64(0)
 			if gxq[1] == "" {
 				rand.Seed(time.Now().UnixNano())
@@ -74,11 +79,7 @@ func main() {
 					results[0] = &tb.ArticleResult{
 						Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ",
 					}
-					results[0].SetResultID(strconv.Itoa(0))
-					_ = b.Answer(q, &tb.QueryResponse{
-						Results:   results,
-						CacheTime: 1,
-					})
+					answer(q, results, 1)
 					return
 				}
 			}
@@ -86,11 +87,7 @@ func main() {
 				URL:   fmt.Sprintf("%sgx/%d.ogg", rawurl, gxindex),
 				Title: gxlist[gxindex],
 			}
-			results[0].SetResultID(strconv.Itoa(0))
-			_ = b.Answer(q, &tb.QueryResponse{
-				Results:   results,
-				CacheTime: 1,
-			})
+			answer(q, results, 1)
 			return
 		}
 
@@ -162,10 +159,7 @@ func main() {
 		// results[1] = &tb.AresultsTexticleResult{Title: "赞助我 QAQ!", Text: "USDT(TRC20): `THyvm5rgHWA8D1R89Y12JASVdVhunHNcxd`"}
 		// results[0].SetResultID(strconv.Itoa(1))
 
-		_ = b.Answer(q, &tb.QueryResponse{
-			Results:   results,
-			CacheTime: 1,
-		})
+		answer(q, results, 1)
 
 	})
 	b.Start()
@@ -326,6 +320,7 @@ var (
 		"0000":   {"0000.ogg", "归零"},
 		".kong":  {"kong.ogg", "直接重仓空进去"},
 		".suoha": {"suoha.ogg", "已经在谷底了，梭！"},
+		".jg":    {"jigou.ogg", "机构进场了，抄底！"},
 	}
 	gxlist = []string{
 		"八点尊",
