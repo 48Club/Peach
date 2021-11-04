@@ -1,5 +1,15 @@
 package main
 
+/*
+* Contact
+* Email: pr@notodom.com
+* Sponsor
+* ETH/BSC: 0x9F9D41C25c35DA7b87024AF8a04F021DdEfbfFD1
+* TRON: TJaCJP66Wh8NsMaCFbNiSDWnwnwufpoLks
+* DOGE: D9BXAocUcsrg86bPUM1nGunwfBGFyR36rC
+* BTC: bc1qvh5mcucsj45l3v2h7r54dypjz60lxsmfa6daf5
+**/
+
 import (
 	"bytes"
 	"encoding/json"
@@ -155,10 +165,6 @@ func main() {
 		}
 	errto:
 		results[0].SetResultID(strconv.Itoa(0))
-
-		// results[1] = &tb.AresultsTexticleResult{Title: "赞助我 QAQ!", Text: "USDT(TRC20): `THyvm5rgHWA8D1R89Y12JASVdVhunHNcxd`"}
-		// results[0].SetResultID(strconv.Itoa(1))
-
 		answer(q, results, 1)
 
 	})
