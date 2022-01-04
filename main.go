@@ -24,6 +24,7 @@ import (
 	"time"
 
 	_ "github.com/CodyGuo/godaemon"
+	"github.com/google/uuid"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -141,30 +142,37 @@ func main() {
 			}
 			var (
 				bc2cp    float64
-				nickname string
-				userurl  string
+				userinfo string
+				sellT    string
+				jumpU    bool
 			)
-			for _, v := range []string{"usdt", "btc", "busd", "bnb", "eth", "dai", "doge"} {
+			for _, v := range []string{"usdt", "btc", "eth"} {
 				if strings.ToLower(queryText[0]) == v {
-					bc2cp, nickname, userurl = getBinanceC2CPrice(queryText[0], usdp*otherp*count)
+					bc2cp, userinfo, sellT = getBinanceC2CPrice(queryText[0], usdp*otherp*count)
 					break
 				}
 			}
-
+			if jumpU = bc2cp == 0; jumpU {
+				bc2cp, userinfo, sellT = getBinanceC2CPrice("USDT", usdp*otherp*count)
+			}
 			cnyp := ftostring(usdp * otherp * count)
 			usdtp := ftostring(otherp * count)
-			text := fmt.Sprintf("%s %s = %s USD\n%s %s = %s CNY", queryText[1], queryText[0], usdtp, queryText[1], queryText[0], cnyp)
+			text := fmt.Sprintf("%s %s ≈ %s USD ≈ %s CNY", queryText[1], queryText[0], usdtp, cnyp)
 			var lines [][]tb.InlineButton
-			switch_inline_query := []tb.InlineButton{{Text: "我也试试", InlineQuery: "BTC"}}
-			if c2c := getC2CStr(count, bc2cp, "币安"); c2c != "" {
-				text += c2c
-				text += fmt.Sprintf("\n当前量最优商家: %s", nickname)
-				line := []tb.InlineButton{{Text: "一键出金", URL: userurl}}
-				lines = [][]tb.InlineButton{line, switch_inline_query}
-			} else {
-				lines = [][]tb.InlineButton{switch_inline_query}
+			switch_inline_query := []tb.InlineButton{{Text: "我也试试", InlineQuery: fmt.Sprintf("%s %s", queryText[0], queryText[1])}}
+			lines = [][]tb.InlineButton{}
+			if bc2cp > 0 {
+				if jumpU {
+					text += fmt.Sprintf("\n\nPexPay: %s => USDT ≈> %.2f CNY", queryText[0], bc2cp*count*otherp)
+				} else {
+					text += fmt.Sprintf("\n\nPexPay: %s ≈> %.2f CNY", queryText[0], bc2cp*count)
+				}
+				thisUuid := uuid.NewString()
+				calllist[thisUuid] = []string{text, userinfo, "SELL", fmt.Sprintf("%d", q.From.ID), fmt.Sprintf("%s %s", queryText[0], queryText[1]), sellT}
+				lines = append(lines, []tb.InlineButton{{Text: "查询场外", Data: thisUuid}})
 			}
-
+			text += "\n\n🪧 底部常驻广告位招租 @elrepo"
+			lines = append(lines, switch_inline_query)
 			results[0] = &tb.ArticleResult{
 				Title: fmt.Sprintf(resultsText+" %s USD", usdtp),
 				Text:  text,
@@ -182,21 +190,63 @@ func main() {
 		answer(q, results, 1)
 
 	})
-	b.Start()
-}
-
-func getC2CStr(count float64, price float64, s string) string {
-	if price > 0 {
-		c2cpStr := ""
-		amount := price * count
-		if amount > 100 {
-			c2cpStr = fmt.Sprintf("%.2f", amount)
-		} else {
-			c2cpStr = fmt.Sprintf("%.4f", amount)
+	b.Handle(tb.OnCallback, func(call *tb.Callback) {
+		switch_inline_query := []tb.InlineButton{{Text: "我也试试", InlineQuery: ""}}
+		data, ok := calllist[call.Data]
+		if !ok {
+			_ = b.Respond(call, &tb.CallbackResponse{
+				Text:      "报价失效咯~ 请重新发起查询",
+				ShowAlert: true,
+			})
+			_, _ = b.EditReplyMarkup(call.Message, &tb.ReplyMarkup{
+				InlineKeyboard: [][]tb.InlineButton{switch_inline_query},
+			})
+			return
 		}
-		return fmt.Sprintf("\n%s场外: %s CNY", s, c2cpStr)
-	}
-	return ""
+		if len(data) == 0 {
+			return
+		}
+		switch data[2] {
+		case "SELL":
+			if fmt.Sprintf("%d", call.Sender.ID) != data[3] { // 此报价不是你发起的哦~
+				_ = b.Respond(call, &tb.CallbackResponse{
+					Text:      "此报价不是你发起的哦~",
+					ShowAlert: true,
+				})
+				return
+			}
+			calllist[call.Data] = []string{}
+			userNo := data[1]
+			rt := ""
+			if userInfo := getUserInfo(userNo); userInfo.Code == "000000" {
+				rt += fmt.Sprintf("\n商户: %s (保证金 %.2f %s)", userInfo.Data.UserDetailVo.NickName, userInfo.Data.UserDetailVo.DepositAmount, userInfo.Data.UserDetailVo.DepositCurrency)
+				KYC := []string{}
+				cKyc := func(v bool, c string) {
+					if v {
+						KYC = append(KYC, c)
+					}
+				}
+				cKyc(userInfo.Data.UserDetailVo.EmailVerified, "邮箱")
+				cKyc(userInfo.Data.UserDetailVo.BindMobile, "手机")
+				cKyc(userInfo.Data.UserDetailVo.KycVerified, "身份认证")
+				rt += fmt.Sprintf("\nKYC: %s", strings.Join(KYC[:], "+"))
+				rt += fmt.Sprintf("\n方式: %s", data[5])
+				rt += fmt.Sprintf("\n成交: 总 %.f 单, 月 %.f 单, 成交率%.2f%%", userInfo.Data.UserDetailVo.UserStatsRet.CompletedOrderNum, userInfo.Data.UserDetailVo.UserStatsRet.CompletedOrderNumOfLatest30day, userInfo.Data.UserDetailVo.UserStatsRet.FinishRateLatest30day*100)
+				rt += fmt.Sprintf("\n付款: 平均 %.2f 分放行, %.2f 分付款", userInfo.Data.UserDetailVo.UserStatsRet.AvgReleaseTimeOfLatest30day/60, userInfo.Data.UserDetailVo.UserStatsRet.AvgPayTimeOfLatest30day/60)
+				rt += fmt.Sprintf("\n账户: 已注册 %.f 天; 首次交易于 %.f 天前", userInfo.Data.UserDetailVo.UserStatsRet.RegisterDays, userInfo.Data.UserDetailVo.UserStatsRet.FirstOrderDays)
+				line := []tb.InlineButton{{Text: "前往交易", URL: fmt.Sprintf("https://www.pexpay.com/zh-CN/advertiserDetail?advertiserNo=%s", data[1])}}
+				switch_inline_query = []tb.InlineButton{{Text: "我也试试", InlineQuery: data[4]}}
+				if _, err := b.Edit(call.Message, data[0]+rt+"\n\n🪧 底部常驻广告位招租 @elrepo", &tb.ReplyMarkup{
+					InlineKeyboard: [][]tb.InlineButton{line, switch_inline_query},
+				}); err == nil {
+					delete(calllist, call.Data)
+					return
+				}
+			}
+		}
+		calllist[call.Data] = data
+	})
+	b.Start()
 }
 
 func ftostring(f float64) string {
@@ -240,28 +290,89 @@ func getBinancePrice(s string) float64 {
 	return 0
 }
 
+type TradeInfo struct {
+	Code  string
+	Data  []TradeData
+	Total float64
+}
+type TradeData struct {
+	AdDetailResp AdDetailResp
+	AdvertiserVo AdvertiserVo
+}
+type AdDetailResp struct {
+	Price        string
+	TradeMethods []TradeMethods
+}
+type AdvertiserVo struct {
+	UserNo string
+}
+type TradeMethods struct {
+	TradeMethodShortName string
+}
+
 func getBinanceC2CPrice(s string, amount float64) (float64, string, string) {
-	jsonStr := []byte(fmt.Sprintf(`{"page":1,"rows":10,"payTypes":[],"asset":"%s","tradeType":"SELL","fiat":"CNY","publisherType":null,"transAmount":"%.2f"}`, s, amount))
-	if resp, err := http.Post("https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search", "application/json", bytes.NewBuffer(jsonStr)); err == nil {
+	jsonStr := []byte(fmt.Sprintf(`{"page":1,"rows":10,"payTypes":[],"classifies":[],"asset":"%s","tradeType":"SELL","fiat":"CNY","publisherType":null,"filter":{"payTypes":[]},"transAmount":"%.2f"}`, s, amount))
+
+	reqest, _ := http.NewRequest("POST", "https://www.pexpay.com/bapi/c2c/v1/friendly/c2c/ad/search", bytes.NewBuffer(jsonStr))
+	reqest.Header.Add("content-type", "application/json")
+	reqest.Header.Add("lang", "zh-CN")
+
+	if resp, err := http.DefaultClient.Do(reqest); err == nil {
 		if body, err := ioutil.ReadAll(resp.Body); err == nil {
 			defer resp.Body.Close()
-			var res map[string]interface{}
-			if err := json.Unmarshal(body, &res); err == nil && res["code"].(string) == "000000" {
-				var first map[string]interface{}
-				if _first, ok := res["data"].([]interface{}); ok && len(_first) > 1 {
-					first = _first[0].(map[string]interface{})
-				} else {
-					// 没有商家吃的下
-					return 0.0, "", ""
-				}
-				if price, err := strconv.ParseFloat(first["adv"].(map[string]interface{})["price"].(string), 64); err == nil {
-					user := first["advertiser"].(map[string]interface{})
-					return price, user["nickName"].(string), fmt.Sprintf("https://p2p.binance.com/zh-CN/advertiserDetail?advertiserNo=%s", user["userNo"].(string))
+			var tradeInfo TradeInfo
+			if err := json.Unmarshal(body, &tradeInfo); err == nil && tradeInfo.Code == "000000" && tradeInfo.Total > 0 {
+				first := tradeInfo.Data[0]
+				if price, err := strconv.ParseFloat(first.AdDetailResp.Price, 64); err == nil {
+					userNo := first.AdvertiserVo.UserNo
+					bType := []string{}
+					for _, v := range first.AdDetailResp.TradeMethods {
+						bType = append(bType, v.TradeMethodShortName)
+
+					}
+					return price, userNo, strings.Join(bType[:], "+")
 				}
 			}
 		}
 	}
 	return 0.0, "", ""
+}
+
+type UserInfo struct {
+	Code string
+	Data UserData
+}
+type UserData struct {
+	UserDetailVo UserDetailVo
+}
+type UserDetailVo struct {
+	NickName        string
+	DepositAmount   float64
+	DepositCurrency string
+	EmailVerified   bool
+	BindMobile      bool
+	KycVerified     bool
+	UserStatsRet    UserStatsRet
+}
+type UserStatsRet struct {
+	RegisterDays                   float64
+	FirstOrderDays                 float64
+	AvgReleaseTimeOfLatest30day    float64
+	AvgPayTimeOfLatest30day        float64
+	FinishRateLatest30day          float64
+	CompletedOrderNum              float64
+	CompletedOrderNumOfLatest30day float64
+}
+
+func getUserInfo(userNo string) UserInfo {
+	var userInfo UserInfo
+	if resp, err0 := http.Get(fmt.Sprintf("https://www.pexpay.com/bapi/c2c/v1/friendly/c2c/user/profile-and-ads-list?userNo=%s", userNo)); err0 == nil {
+		if body, err := ioutil.ReadAll(resp.Body); err == nil {
+			defer resp.Body.Close()
+			_ = json.Unmarshal(body, &userInfo)
+		}
+	}
+	return userInfo
 }
 
 type SymbolMap struct {
@@ -329,7 +440,8 @@ func GetSha() string {
 }
 
 var (
-	ogglist = map[string][]string{
+	calllist = map[string][]string{}
+	ogglist  = map[string][]string{
 		"0000":     {"0000.ogg", "归零"},
 		".kong":    {"kong.ogg", "直接重仓空进去"},
 		".suoha":   {"suoha.ogg", "已经在谷底了，梭！"},
