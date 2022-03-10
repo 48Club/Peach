@@ -191,12 +191,13 @@ func main() {
 		call := cont.Callback()
 		switch_inline_query := []tb.InlineButton{{Text: "我也试试", InlineQuery: ""}}
 		data, ok := calllist[call.Data]
+		var err error
 		if !ok {
 			_ = b.Respond(call, &tb.CallbackResponse{
 				Text:      "报价失效咯~ 请重新发起查询",
 				ShowAlert: true,
 			})
-			_, err := b.EditReplyMarkup(call.Message, &tb.ReplyMarkup{
+			_, err = b.EditReplyMarkup(call, &tb.ReplyMarkup{
 				InlineKeyboard: [][]tb.InlineButton{switch_inline_query},
 			})
 			return err
@@ -233,16 +234,15 @@ func main() {
 				rt += fmt.Sprintf("\n账户: 已注册 %.f 天; 首次交易于 %.f 天前", userInfo.Data.UserDetailVo.UserStatsRet.RegisterDays, userInfo.Data.UserDetailVo.UserStatsRet.FirstOrderDays)
 				line := []tb.InlineButton{{Text: "前往交易", URL: fmt.Sprintf("https://www.pexpay.com/zh-CN/advertiserDetail?advertiserNo=%s", data[1])}}
 				switch_inline_query = []tb.InlineButton{{Text: "我也试试", InlineQuery: data[4]}}
-				if _, err := b.Edit(call.Message, data[0]+rt+"\n\n🪧 底部常驻广告位招租 @elrepo", &tb.ReplyMarkup{
+				if _, err = b.Edit(call, data[0]+rt+"\n\n🪧 捐赠联系 @elrepo", &tb.ReplyMarkup{
 					InlineKeyboard: [][]tb.InlineButton{line, switch_inline_query},
 				}); err == nil {
 					delete(calllist, call.Data)
-					return err
 				}
 			}
 		}
 		calllist[call.Data] = data
-		return nil
+		return err
 	})
 	b.Start()
 }
