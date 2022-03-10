@@ -4,10 +4,7 @@ package main
 * Contact
 * Email: pr@notodom.com
 * Sponsor
-* ETH/BSC: 0x9F9D41C25c35DA7b87024AF8a04F021DdEfbfFD1
-* TRON: TJaCJP66Wh8NsMaCFbNiSDWnwnwufpoLks
-* DOGE: D9BXAocUcsrg86bPUM1nGunwfBGFyR36rC
-* BTC: bc1qvh5mcucsj45l3v2h7r54dypjz60lxsmfa6daf5
+* ETH/BSC: 0x8888865ca6D38365d49e63098ceB37D48Fe88888
 **/
 
 import (
@@ -25,7 +22,7 @@ import (
 
 	_ "github.com/CodyGuo/godaemon"
 	"github.com/google/uuid"
-	tb "gopkg.in/tucnak/telebot.v2"
+	tb "gopkg.in/telebot.v3"
 )
 
 func main() {
@@ -41,9 +38,9 @@ func main() {
 		log.Fatal(err)
 		return
 	}
-	answer := func(q *tb.Query, results tb.Results, ct int) {
+	answer := func(q *tb.Query, results tb.Results, ct int) error {
 		results[0].SetResultID(strconv.Itoa(0))
-		_ = b.Answer(q, &tb.QueryResponse{
+		return b.Answer(q, &tb.QueryResponse{
 			Results:   results,
 			CacheTime: ct,
 		})
@@ -57,27 +54,28 @@ func main() {
 		return false, []string{}
 	}
 
-	b.Handle(tb.OnQuery, func(q *tb.Query) {
+	b.Handle(tb.OnQuery, func(cont tb.Context) error {
+		q := cont.Query()
 		results := make(tb.Results, 1)
 		isinogg, oggv := inogglist(q.Text, ogglist)
 		gxq := strings.Split(strings.ToUpper(q.Text), ".GX")
 		switch true {
 		case strings.ToUpper(q.Text) == "HHHH":
 			results[0] = &tb.PhotoResult{
-				URL:       fmt.Sprintf("%sJMXhPqI.png", rawurl),
-				ThumbURL:  fmt.Sprintf("%sJMXhPqI.png", rawurl),
-				Caption:   "`Pig God: 我发火龙都累死了`",
-				ParseMode: tb.ModeMarkdownV2,
+				URL:        fmt.Sprintf("%sJMXhPqI.png", rawurl),
+				ThumbURL:   fmt.Sprintf("%sJMXhPqI.png", rawurl),
+				Caption:    "`Pig God: 我发火龙都累死了`",
+				ResultBase: tb.ResultBase{ParseMode: tb.ModeMarkdownV2},
 			}
-			answer(q, results, 60)
-			return
+			return answer(q, results, 60)
+
 		case isinogg:
 			results[0] = &tb.VoiceResult{
 				URL:   fmt.Sprintf("%s%s", rawurl, oggv[0]),
 				Title: oggv[1],
 			}
-			answer(q, results, 60)
-			return
+			return answer(q, results, 60)
+
 		case len(gxq) == 2 && gxq[0] == "":
 			gxindex := int64(0)
 			if gxq[1] == "" {
@@ -90,16 +88,15 @@ func main() {
 					results[0] = &tb.ArticleResult{
 						Title: "暂不支持该货币，", Text: "嘤嘤嘤QAQ",
 					}
-					answer(q, results, 1)
-					return
+					return answer(q, results, 1)
 				}
 			}
 			results[0] = &tb.VoiceResult{
 				URL:   fmt.Sprintf("%sgx/%d.ogg", rawurl, gxindex),
 				Title: gxlist[gxindex],
 			}
-			answer(q, results, 1)
-			return
+			return answer(q, results, 1)
+
 		}
 
 		queryText := strings.Split(strings.ToUpper(q.Text), " ")
@@ -117,7 +114,7 @@ func main() {
 		} else if len(queryText) == 2 {
 			resultsText = fmt.Sprintf("当前 %s 个 %s 市价", queryText[1], queryText[0])
 		} else {
-			return
+			return nil
 		}
 		usdp := getUSDPrice()
 		var otherp float64
@@ -168,16 +165,16 @@ func main() {
 					text += fmt.Sprintf("\n\nPexPay: %s ≈> %.2f CNY", queryText[0], bc2cp*count)
 				}
 				thisUuid := uuid.NewString()
-				calllist[thisUuid] = []string{text, userinfo, "SELL", fmt.Sprintf("%d", q.From.ID), fmt.Sprintf("%s %s", queryText[0], queryText[1]), sellT}
+				calllist[thisUuid] = []string{text, userinfo, "SELL", fmt.Sprintf("%d", q.Sender.ID), fmt.Sprintf("%s %s", queryText[0], queryText[1]), sellT}
 				lines = append(lines, []tb.InlineButton{{Text: "查询场外", Data: thisUuid}})
 			}
-			text += "\n\n🪧 底部常驻广告位招租 @elrepo"
+			// text += "\n\n🪧 底部常驻广告位招租 @elrepo"
 			lines = append(lines, switch_inline_query)
 			results[0] = &tb.ArticleResult{
 				Title: fmt.Sprintf(resultsText+" %s USD", usdtp),
 				Text:  text,
 				ResultBase: tb.ResultBase{
-					ReplyMarkup: &tb.InlineKeyboardMarkup{
+					ReplyMarkup: &tb.ReplyMarkup{
 						InlineKeyboard: lines,
 					},
 				},
@@ -187,10 +184,11 @@ func main() {
 		}
 	errto:
 		results[0].SetResultID(strconv.Itoa(0))
-		answer(q, results, 1)
+		return answer(q, results, 1)
 
 	})
-	b.Handle(tb.OnCallback, func(call *tb.Callback) {
+	b.Handle(tb.OnCallback, func(cont tb.Context) error {
+		call := cont.Callback()
 		switch_inline_query := []tb.InlineButton{{Text: "我也试试", InlineQuery: ""}}
 		data, ok := calllist[call.Data]
 		if !ok {
@@ -198,22 +196,21 @@ func main() {
 				Text:      "报价失效咯~ 请重新发起查询",
 				ShowAlert: true,
 			})
-			_, _ = b.EditReplyMarkup(call.Message, &tb.ReplyMarkup{
+			_, err := b.EditReplyMarkup(call.Message, &tb.ReplyMarkup{
 				InlineKeyboard: [][]tb.InlineButton{switch_inline_query},
 			})
-			return
+			return err
 		}
 		if len(data) == 0 {
-			return
+			return nil
 		}
 		switch data[2] {
 		case "SELL":
 			if fmt.Sprintf("%d", call.Sender.ID) != data[3] { // 此报价不是你发起的哦~
-				_ = b.Respond(call, &tb.CallbackResponse{
+				return b.Respond(call, &tb.CallbackResponse{
 					Text:      "此报价不是你发起的哦~",
 					ShowAlert: true,
 				})
-				return
 			}
 			calllist[call.Data] = []string{}
 			userNo := data[1]
@@ -240,11 +237,12 @@ func main() {
 					InlineKeyboard: [][]tb.InlineButton{line, switch_inline_query},
 				}); err == nil {
 					delete(calllist, call.Data)
-					return
+					return err
 				}
 			}
 		}
 		calllist[call.Data] = data
+		return nil
 	})
 	b.Start()
 }
