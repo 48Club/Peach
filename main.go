@@ -27,7 +27,7 @@ import (
 
 func main() {
 
-	rawurl := fmt.Sprintf("https://raw.githubusercontent.com/BNB48Club/Peach/%s/file/", GetSha())
+	rawurl := fmt.Sprintf("https://raw.githubusercontent.com/48Club/Peach/%s/file/", GetSha())
 
 	b, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("token"),
@@ -430,7 +430,7 @@ func httpGet(uri string, v interface{}) error {
 
 func GetSha() string {
 	res := []map[string]interface{}{}
-	err := httpGet("https://api.github.com/repos/BNB48Club/Peach/commits", &res)
+	err := httpGet("https://api.github.com/repos/48Club/Peach/commits", &res)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
